@@ -348,14 +348,11 @@ function checkPlayerMeteorCollision() {
     }
 }
 
-// 画面下部まで到達した隕石（中心が画面の下端を越えたもの）を削除し、ダメージを与える
-function checkMeteorsReachedBottom() {
+// 画面下に抜けた隕石をこっそり削除する（避けたのでダメージもスコアもなし）
+function removeMeteorsPassedBottom() {
     for (const meteor of getAllMeteors()) {
-        if (meteor.y >= scene.screenHeight()) {
-            if (markMeteorHandled(meteor)) {
-                meteor.destroy()
-                damagePlayer()
-            }
+        if (meteor.top >= scene.screenHeight()) {
+            meteor.destroy()
         }
     }
 }
@@ -447,7 +444,7 @@ function setupEvents() {
         spawnMeteorsIfNeeded()
         checkProjectileMeteorCollision()
         checkPlayerMeteorCollision()
-        checkMeteorsReachedBottom()
+        removeMeteorsPassedBottom()
         updateInvincibleBlink()
     })
 }
