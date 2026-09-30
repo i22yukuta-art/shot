@@ -21,6 +21,8 @@ const BLINK_INTERVAL_MS = 100        // 無敵中の点滅間隔（ミリ秒）
 const PLAYER_HITBOX_HALF_WIDTH = 4   // 飛行船の判定の横幅の半分（4なら幅8ピクセル）
 const PLAYER_HITBOX_HALF_HEIGHT = 5  // 飛行船の判定の高さの半分（5なら高さ10ピクセル）
 const METEOR_HITBOX_MARGIN = 2       // 隕石の見た目より何ピクセル内側で判定するか
+const LASER_HITBOX_HALF_WIDTH = 1    // 弾の判定の横幅の半分
+const LASER_HITBOX_HALF_HEIGHT = 3   // 弾の判定の高さの半分
 
 const PROJECTILE_SPEED = 120         // 弾の速度
 const SHOT_COOLDOWN_MS = 180         // 連射間隔の最小値（ミリ秒）
@@ -302,6 +304,29 @@ function breakMeteor(meteor: Sprite, playSound: boolean) {
     addScore()
 }
 
+// 弾と隕石が触れているかを、見た目より小さい判定で調べる
+function isLaserHittingMeteor(laser: Sprite, meteor: Sprite): boolean {
+    const meteorHalfWidth = meteor.width / 2 - METEOR_HITBOX_MARGIN
+    const meteorHalfHeight = meteor.height / 2 - METEOR_HITBOX_MARGIN
+    const distanceX = Math.abs(meteor.x - laser.x)
+    const distanceY = Math.abs(meteor.y - laser.y)
+    return distanceX < LASER_HITBOX_HALF_WIDTH + meteorHalfWidth
+        && distanceY < LASER_HITBOX_HALF_HEIGHT + meteorHalfHeight
+}
+
+// 弾に当たった隕石を破壊する
+function checkProjectileMeteorCollision() {
+    for (const laser of sprites.allOfKind(SpriteKind.Projectile).slice()) {
+        for (const meteor of getAllMeteors()) {
+            if (!meteor.data["handled"] && isLaserHittingMeteor(laser, meteor)) {
+                laser.destroy()
+                breakMeteor(meteor, true)
+                break // この弾はもう消えたので次の弾へ
+            }
+        }
+    }
+}
+
 // 飛行船と隕石が触れているかを、見た目より小さい判定で調べる
 // 中心どうしの距離が「判定の半分の大きさの合計」より小さければ当たり
 function isHittingPlayer(meteor: Sprite): boolean {
@@ -323,10 +348,10 @@ function checkPlayerMeteorCollision() {
     }
 }
 
-// 画面下部まで到達した隕石を削除し、ダメージを与える
+// 画面下部まで到達した隕石（中心が画面の下端を越えたもの）を削除し、ダメージを与える
 function checkMeteorsReachedBottom() {
     for (const meteor of getAllMeteors()) {
-        if (meteor.bottom >= scene.screenHeight()) {
+        if (meteor.y >= scene.screenHeight()) {
             if (markMeteorHandled(meteor)) {
                 meteor.destroy()
                 damagePlayer()
@@ -408,17 +433,6 @@ function setupEvents() {
         useBomb()
     })
 
-    // 弾と隕石の当たり判定（撃ちやすさ優先で標準の判定を使う）
-    sprites.onOverlap(SpriteKind.Projectile, SpriteKind.Meteor, function (laser, meteor) {
-        // すでに処理済みの隕石には反応しない（弾も消費しない）
-        if (isGameOver || laser.data["used"] || meteor.data["handled"]) {
-            return
-        }
-        laser.data["used"] = true
-        laser.destroy()
-        breakMeteor(meteor, true)
-    })
-
     // ライフが0になったらゲームオーバー
     info.onLifeZero(function () {
         endGame()
@@ -431,6 +445,7 @@ function setupEvents() {
             return
         }
         spawnMeteorsIfNeeded()
+        checkProjectileMeteorCollision()
         checkPlayerMeteorCollision()
         checkMeteorsReachedBottom()
         updateInvincibleBlink()
